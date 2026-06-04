@@ -1,0 +1,1049 @@
+{
+  "name": "DQM_wf_v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 0 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -2688,
+        400
+      ],
+      "id": "439e2339-cd7b-4b0a-b4ef-d4d284e2183c",
+      "name": "Schedule Trigger1"
+    },
+    {
+      "parameters": {
+        "url": "https://data.cityofnewyork.us/resource/biws-g3hs.csv?$limit=50000",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2464,
+        304
+      ],
+      "id": "ae7ae854-efba-4a52-bd05-05827e949615",
+      "name": "NYC Taxi Fetch"
+    },
+    {
+      "parameters": {
+        "url": "https://api.openaq.org/v3/locations?countries_id=9&parameters_id=2&limit=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "country",
+              "value": "IN"
+            },
+            {
+              "name": "parameters_id",
+              "value": "2"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2464,
+        496
+      ],
+      "id": "d61096b9-9dad-408c-8024-99f462e09d9c",
+      "name": "OpenAQ IN Fetch",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EJRKJ3A1EcdEKGFj",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "dq-agent-datalake-production",
+        "fileName": "={{ $json.s3Key }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -2016,
+        304
+      ],
+      "id": "9c0642c9-c621-4597-a328-cc358aeec276",
+      "name": "Upload NYC Taxi to S3",
+      "credentials": {
+        "aws": {
+          "id": "c9WbVYAO8XiRfpX9",
+          "name": "AWS (IAM) account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst pad = n => String(n).padStart(2,'0');\nconst ts = `${now.getUTCFullYear()}${pad(now.getUTCMonth()+1)}${pad(now.getUTCDate())}_${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;\n\n// Pass through binary data + add s3Key\nconst item = $input.first();\nreturn [{\n  json: { s3Key: `landing/nyc_taxi/nyc_taxi_${ts}.csv` },\n  binary: item.binary\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2240,
+        304
+      ],
+      "id": "4bc412dc-5c10-416e-98ae-fbcbdcb3cc54",
+      "name": "Build NYC Taxi S3 Key"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst pad = n => String(n).padStart(2,'0');\nconst ts = `${now.getUTCFullYear()}${pad(now.getUTCMonth()+1)}${pad(now.getUTCDate())}_${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;\n\nconst item = $input.first();\nconst payload = JSON.stringify(item.json, null, 2);\nconst buffer = Buffer.from(payload);\n\nreturn [{\n  json: { s3Key: `landing/openaq/openaq_${ts}.json` },\n  binary: {\n    data: {\n      data: buffer.toString('base64'),\n      mimeType: 'application/json',\n      fileName: `openaq_${ts}.json`\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2240,
+        496
+      ],
+      "id": "50f79ae4-7714-4373-b0bf-c629ca1aa8e1",
+      "name": "Build OpenAQ S3 Key"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "dq-agent-datalake-production",
+        "fileName": "={{ $json.s3Key }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -2016,
+        496
+      ],
+      "id": "529d5a66-9de4-4d19-8f18-583dcd019414",
+      "name": "Upload OpenAQ to S3",
+      "credentials": {
+        "aws": {
+          "id": "c9WbVYAO8XiRfpX9",
+          "name": "AWS (IAM) account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1792,
+        400
+      ],
+      "id": "9da3f4a3-df7f-4bb2-ad88-af235db23d98",
+      "name": "Merge Uploads"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  log_id,\n  table_name,\n  check_name,\n  status,\n  row_count,\n  issue_count,\n  run_timestamp\nFROM DQ_AGENT.DQ_MONITORING.DQ_AUDIT_LOG\nWHERE status = 'FAIL'\n  AND issue_count > 100\n  AND run_timestamp >= DATEADD('minute', -60, CURRENT_TIMESTAMP())\nORDER BY run_timestamp DESC"
+      },
+      "type": "n8n-nodes-base.snowflake",
+      "typeVersion": 1,
+      "position": [
+        -1568,
+        400
+      ],
+      "id": "85a95464-5a26-4fef-8292-24ecc7f88e4d",
+      "name": "Query DQ FAILs",
+      "credentials": {
+        "snowflake": {
+          "id": "apNFo6AEh4twwY9S",
+          "name": "Snowflake DQ Agent Schema"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1dbcda8d-f247-43c3-9dc9-04bb73795fea",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1344,
+        400
+      ],
+      "id": "27fde637-912f-4eaf-a4df-df61b55bf476",
+      "name": "Any FAILs?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fails = $input.all();\n\nconst lines = fails.map(item => {\n  const d = item.json;\n  return `• [${d.TABLE_NAME}] ${d.CHECK_NAME} — ${d.ISSUE_COUNT} issues / ${d.ROW_COUNT} rows`;\n}).join('\\n');\n\nreturn [{\n  json: {\n    subject: `🔴 DQ Agent ALERT — ${fails.length} FAIL(s) detected`,\n    message: `DQ Agent detected ${fails.length} critical failure(s):\\n\\n${lines}\\n\\nCheck: DQ_AGENT.DQ_MONITORING.DQ_AUDIT_LOG\\nS3 Results: s3://dq-agent-datalake-production/processed/dq_results/`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        112
+      ],
+      "id": "a38be0a1-f4b9-49b0-8e2b-ace34e7f362f",
+      "name": "Build DQ Alert Message"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT trip_date, total_trips, avg_fare, total_revenue, \navg_distance_miles, avg_passengers, avg_tip\nFROM DQ_AGENT.MARTS.NYC_TAXI_DAILY_KPI\nORDER BY trip_date DESC LIMIT 30"
+      },
+      "type": "n8n-nodes-base.snowflake",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        304
+      ],
+      "id": "d99431b0-3232-4f4e-b640-4fb79a8b2ab2",
+      "name": "Get NYC Taxi KPIs",
+      "credentials": {
+        "snowflake": {
+          "id": "apNFo6AEh4twwY9S",
+          "name": "Snowflake DQ Agent Schema"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT dataset, total_checks, passed, failed, \npass_rate_pct, last_run_ts\nFROM DQ_AGENT.MARTS.PIPELINE_HEALTH_SUMMARY"
+      },
+      "type": "n8n-nodes-base.snowflake",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        496
+      ],
+      "id": "c4f139ec-1dfc-42eb-9372-9a5b64b1f689",
+      "name": "Get Pipeline Health",
+      "credentials": {
+        "snowflake": {
+          "id": "apNFo6AEh4twwY9S",
+          "name": "Snowflake DQ Agent Schema"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT location_id, avg_pm25, max_pm25, \nabove_who_threshold, hazardous_count, worst_category\nFROM DQ_AGENT.MARTS.OPENAQ_LOCATION_KPI"
+      },
+      "type": "n8n-nodes-base.snowflake",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        688
+      ],
+      "id": "6afc7637-6e97-48ca-8505-f37227b48f59",
+      "name": "Get OpenAQ KPIs",
+      "credentials": {
+        "snowflake": {
+          "id": "apNFo6AEh4twwY9S",
+          "name": "Snowflake DQ Agent Schema"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1baJYDFsswOC0VNPWu7c8aFCKExrIc7YNLFFlSt-Wz2U",
+          "mode": "list",
+          "cachedResultName": "DQ Agent — KPI Dashboard",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1baJYDFsswOC0VNPWu7c8aFCKExrIc7YNLFFlSt-Wz2U/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "NYC_Taxi_KPIs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1baJYDFsswOC0VNPWu7c8aFCKExrIc7YNLFFlSt-Wz2U/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "TRIP_DATE",
+              "displayName": "TRIP_DATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TOTAL_TRIPS",
+              "displayName": "TOTAL_TRIPS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "AVG_FARE",
+              "displayName": "AVG_FARE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TOTAL_REVENUE",
+              "displayName": "TOTAL_REVENUE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "AVG_DISTANCE_MILES",
+              "displayName": "AVG_DISTANCE_MILES",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "AVG_PASSENGERS",
+              "displayName": "AVG_PASSENGERS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "AVG_TIP",
+              "displayName": "AVG_TIP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -896,
+        304
+      ],
+      "id": "336af24a-6470-46dd-b0a9-36d735ac649c",
+      "name": "Write NYC Taxi KPIs",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gHcDJi42S41cENbQ",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1baJYDFsswOC0VNPWu7c8aFCKExrIc7YNLFFlSt-Wz2U",
+          "mode": "list",
+          "cachedResultName": "DQ Agent — KPI Dashboard",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1baJYDFsswOC0VNPWu7c8aFCKExrIc7YNLFFlSt-Wz2U/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1396989874,
+          "mode": "list",
+          "cachedResultName": "OpenAQ_KPIs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1baJYDFsswOC0VNPWu7c8aFCKExrIc7YNLFFlSt-Wz2U/edit#gid=1396989874"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "LOCATION_ID",
+              "displayName": "LOCATION_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AVG_PM25",
+              "displayName": "AVG_PM25",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MAX_PM25",
+              "displayName": "MAX_PM25",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ABOVE_WHO_THRESHOLD",
+              "displayName": "ABOVE_WHO_THRESHOLD",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HAZARDOUS_COUNT",
+              "displayName": "HAZARDOUS_COUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "WORST_CATEGORY",
+              "displayName": "WORST_CATEGORY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -896,
+        688
+      ],
+      "id": "edc52837-1609-486a-8565-946d8372d51e",
+      "name": "Write OpenAQ KPIs",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gHcDJi42S41cENbQ",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1baJYDFsswOC0VNPWu7c8aFCKExrIc7YNLFFlSt-Wz2U",
+          "mode": "list",
+          "cachedResultName": "DQ Agent — KPI Dashboard",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1baJYDFsswOC0VNPWu7c8aFCKExrIc7YNLFFlSt-Wz2U/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1843708758,
+          "mode": "list",
+          "cachedResultName": "Pipeline_Health",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1baJYDFsswOC0VNPWu7c8aFCKExrIc7YNLFFlSt-Wz2U/edit#gid=1843708758"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "DATASET",
+              "displayName": "DATASET",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TOTAL_CHECKS",
+              "displayName": "TOTAL_CHECKS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PASSED",
+              "displayName": "PASSED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "FAILED",
+              "displayName": "FAILED",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PASS_RATE_PCT",
+              "displayName": "PASS_RATE_PCT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LAST_RUN_TS",
+              "displayName": "LAST_RUN_TS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -896,
+        496
+      ],
+      "id": "e3e1a732-af5e-4f44-b896-f05c784ffbb4",
+      "name": "Write Pipeline Health",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gHcDJi42S41cENbQ",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "topic": {
+          "__rl": true,
+          "value": "arn:aws:sns:ap-south-1:YOUR_AWS_ACCOUNT_ID:dq-alerts",
+          "mode": "list",
+          "cachedResultName": "dq-alerts",
+          "cachedResultUrl": "https://ap-south-1.console.aws.amazon.com/sns/v3/home?region=ap-south-1#/topic/arn:aws:sns:ap-south-1:YOUR_AWS_ACCOUNT_ID:dq-alerts"
+        },
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.message }}"
+      },
+      "type": "n8n-nodes-base.awsSns",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        496
+      ],
+      "id": "ce9510b2-4964-4f5a-bd74-b23f7c590434",
+      "name": "SNS KPI Published",
+      "credentials": {
+        "aws": {
+          "id": "c9WbVYAO8XiRfpX9",
+          "name": "AWS (IAM) account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst message = `DQ Agent KPI publish complete.\n\n✅ NYC_Taxi_KPIs — rows written\n✅ Pipeline_Health — rows written\n✅ OpenAQ_KPIs — rows written\n\nTime: ${new Date().toISOString()}`;\n\nreturn [{\n  json: {\n    subject: '✅ DQ Agent — KPIs Published to Google Sheets',\n    message: message\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        496
+      ],
+      "id": "9d6a9ce9-61b6-4f9e-b798-7fec3a6e237c",
+      "name": "Build Success Message"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_EMAIL@gmail.com",
+        "subject": "={{ $('Build DQ Alert Message').item.json.subject }}",
+        "message": "={{ $('Build DQ Alert Message').item.json.message }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -448,
+        112
+      ],
+      "id": "d88bb872-c684-4fd7-9c43-0921dd271e49",
+      "name": "Email DQ Alert",
+      "webhookId": "ccead707-8037-4575-9970-041ca312ed54",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Rr2k9cZvQJTlaA6q",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "userKey": "YOUR_PUSHOVER_USER_KEY",
+        "message": "={{ $('Build Success Message').item.json.message }}",
+        "priority": 0,
+        "additionalFields": {
+          "sound": "magic",
+          "title": "=✅ DQ Agent — KPIs Published"
+        }
+      },
+      "type": "n8n-nodes-base.pushover",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        496
+      ],
+      "id": "fc397626-c510-4dbf-9baf-ef05d2736557",
+      "name": "Pushover KPI Published",
+      "credentials": {
+        "pushoverApi": {
+          "id": "PgJmMD0s3OhDHwWb",
+          "name": "Pushover account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_EMAIL@gmail.com",
+        "subject": "=✅ DQ Agent — KPIs Published to Google Sheets",
+        "message": "={{ $('Build Success Message').item.json.message }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        496
+      ],
+      "id": "3e579805-90d3-45ad-905b-3060f970045f",
+      "name": "Email KPI Published",
+      "webhookId": "ccead707-8037-4575-9970-041ca312ed54",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Rr2k9cZvQJTlaA6q",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "userKey": "YOUR_PUSHOVER_USER_KEY",
+        "message": "={{ $('Build DQ Alert Message').item.json.message }}",
+        "priority": 1,
+        "additionalFields": {
+          "sound": "siren",
+          "title": "={{ $('Build DQ Alert Message').item.json.subject }}"
+        }
+      },
+      "type": "n8n-nodes-base.pushover",
+      "typeVersion": 1,
+      "position": [
+        -672,
+        112
+      ],
+      "id": "b11007d3-6c69-439c-a0b2-0161b453cfb8",
+      "name": "Pushover DQ Alert",
+      "credentials": {
+        "pushoverApi": {
+          "id": "PgJmMD0s3OhDHwWb",
+          "name": "Pushover account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "topic": {
+          "__rl": true,
+          "value": "arn:aws:sns:ap-south-1:YOUR_AWS_ACCOUNT_ID:dq-alerts",
+          "mode": "list",
+          "cachedResultName": "dq-alerts",
+          "cachedResultUrl": "https://ap-south-1.console.aws.amazon.com/sns/v3/home?region=ap-south-1#/topic/arn:aws:sns:ap-south-1:YOUR_AWS_ACCOUNT_ID:dq-alerts"
+        },
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.message }}"
+      },
+      "type": "n8n-nodes-base.awsSns",
+      "typeVersion": 1,
+      "position": [
+        -896,
+        112
+      ],
+      "id": "62a07264-57c7-414c-b301-1c4deeff1eea",
+      "name": "SNS SQ Alert",
+      "credentials": {
+        "aws": {
+          "id": "c9WbVYAO8XiRfpX9",
+          "name": "AWS (IAM) account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger1": {
+      "main": [
+        [
+          {
+            "node": "NYC Taxi Fetch",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "OpenAQ IN Fetch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAQ IN Fetch": {
+      "main": [
+        [
+          {
+            "node": "Build OpenAQ S3 Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NYC Taxi Fetch": {
+      "main": [
+        [
+          {
+            "node": "Build NYC Taxi S3 Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build NYC Taxi S3 Key": {
+      "main": [
+        [
+          {
+            "node": "Upload NYC Taxi to S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build OpenAQ S3 Key": {
+      "main": [
+        [
+          {
+            "node": "Upload OpenAQ to S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload OpenAQ to S3": {
+      "main": [
+        [
+          {
+            "node": "Merge Uploads",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Upload NYC Taxi to S3": {
+      "main": [
+        [
+          {
+            "node": "Merge Uploads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Uploads": {
+      "main": [
+        [
+          {
+            "node": "Query DQ FAILs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query DQ FAILs": {
+      "main": [
+        [
+          {
+            "node": "Any FAILs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any FAILs?": {
+      "main": [
+        [
+          {
+            "node": "Build DQ Alert Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get NYC Taxi KPIs",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Pipeline Health",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get OpenAQ KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build DQ Alert Message": {
+      "main": [
+        [
+          {
+            "node": "SNS SQ Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get NYC Taxi KPIs": {
+      "main": [
+        [
+          {
+            "node": "Write NYC Taxi KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get OpenAQ KPIs": {
+      "main": [
+        [
+          {
+            "node": "Write OpenAQ KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pipeline Health": {
+      "main": [
+        [
+          {
+            "node": "Write Pipeline Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write NYC Taxi KPIs": {
+      "main": [
+        [
+          {
+            "node": "Build Success Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Pipeline Health": {
+      "main": [
+        [
+          {
+            "node": "Build Success Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write OpenAQ KPIs": {
+      "main": [
+        [
+          {
+            "node": "Build Success Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Success Message": {
+      "main": [
+        [
+          {
+            "node": "SNS KPI Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SNS KPI Published": {
+      "main": [
+        [
+          {
+            "node": "Pushover KPI Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pushover KPI Published": {
+      "main": [
+        [
+          {
+            "node": "Email KPI Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pushover DQ Alert": {
+      "main": [
+        [
+          {
+            "node": "Email DQ Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SNS SQ Alert": {
+      "main": [
+        [
+          {
+            "node": "Pushover DQ Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "eb57508f-88ed-45c3-807c-4a2904f6a450",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "70742d2aebaf03e0c4824bf66361e9610f8cdd78fc67f489c7e5a275f2c0c967"
+  },
+  "id": "BMW7YycvbeYeBhdp",
+  "tags": []
+}

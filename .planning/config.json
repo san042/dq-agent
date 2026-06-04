@@ -1,0 +1,9 @@
+{
+  "resolve_model_ids": true,
+  "workflow": {
+    "research": false,
+    "nyquist_validation": false,
+    "plan_check": false
+  },
+  "context_window": 16384
+}

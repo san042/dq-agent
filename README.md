@@ -1,2 +1,4 @@
-# dq-agent
-DQ N8N Workflow Project
+
+## n8n Workflow Architecture
+
+![DQM n8n Workflow](docs/images/dq-n8n_workflow_diagram.png)

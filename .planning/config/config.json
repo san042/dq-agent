@@ -1,0 +1,9 @@
+{
+  "project_name": "DQM",
+  "project_summary": "Data Quality Monitor Pipeline",
+  "target_audience": "Data engineers, analysts, and stakeholders",
+  "primary_use_case": "Data quality monitoring with dashboards",
+  "success_metrics": "MVP in 2-4 weeks",
+  "timeline": "2-4 weeks",
+  "resolve_model_ids": true
+}
