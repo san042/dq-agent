@@ -9,11 +9,11 @@ real-time alerts on failures — orchestrated with n8n and built on AWS + Snowfl
 ## Architecture
 
 ```
-                    ┌──────────────┐
-   NYC Taxi API ───▶│              │
-                    │     n8n      │──▶ AWS S3 (landing) ──▶ Snowflake
+                    ┌───────────────┐
+   NYC Taxi API ───▶│               │
+                    │     n8n       │──▶ AWS S3 (landing) ──▶ Snowflake
    OpenAQ API   ───▶│ (orchestrator)│      data lake          (Bronze→Silver→Gold)
-                    └──────────────┘                              │
+                    └───────────────┘                             │
                             │                                     ▼
                             │                          DQ checks + KPI marts
                             ▼                                     │
